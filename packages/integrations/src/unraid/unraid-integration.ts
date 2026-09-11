@@ -63,13 +63,41 @@ export class UnraidIntegration extends Integration implements ISystemHealthMonit
       rebootRequired: false,
       availablePkgUpdates: 0,
       cpuTemp: undefined, // Not implemented, see https://github.com/unraid/api/issues/1597
-      fileSystem: systemInfo.array.disks.map((disk) => ({
-        deviceName: disk.name,
-        used: `${disk.fsUsed * 1024}`, // API is in KiB (kibibytes), convert to bytes
-        available: `${(disk.size - disk.fsUsed) * 1024}`, // free space left on the disk, API is in KiB (kibibytes)
-        percentage: (disk.fsUsed / disk.size) * 100, // The units are the same, therefore the actual unit is irrelevant
-      })),
-      smart: systemInfo.array.disks.map((disk) => ({
+      fileSystem: [
+        ...systemInfo.array.disks.map((disk) => ({
+          deviceName: disk.name,
+          used: `${disk.fsUsed * 1024}`, // API is in KiB (kibibytes), convert to bytes
+          available: `${(disk.size - disk.fsUsed) * 1024}`, // free space left on the disk, API is in KiB (kibibytes)
+          percentage: (disk.fsUsed / disk.size) * 100, // The units are the same, therefore the actual unit is irrelevant
+        })),
+        ...systemInfo.array.caches.flatMap((disk) => {
+          const { fsSize, fsFree, fsUsed } = disk;
+          // Secondary pool members may not report filesystem capacity.
+          if (
+            fsSize === null ||
+            fsFree === null ||
+            fsUsed === null ||
+            !Number.isFinite(fsSize) ||
+            !Number.isFinite(fsFree) ||
+            !Number.isFinite(fsUsed) ||
+            fsSize <= 0 ||
+            fsFree < 0 ||
+            fsUsed < 0
+          ) {
+            return [];
+          }
+
+          return [
+            {
+              deviceName: disk.name,
+              used: `${fsUsed * 1024}`, // API is in KiB (kibibytes), convert to bytes
+              available: `${fsFree * 1024}`,
+              percentage: (fsUsed / fsSize) * 100,
+            },
+          ];
+        }),
+      ],
+      smart: [...systemInfo.array.disks, ...systemInfo.array.caches].map((disk) => ({
         deviceName: disk.name,
         temperature: disk.temp ?? null,
         overallStatus: disk.status,
@@ -117,6 +145,14 @@ export class UnraidIntegration extends Integration implements ISystemHealthMonit
           disks {
             name
             size
+            fsFree
+            fsUsed
+            status
+            temp
+          }
+          caches {
+            name
+            fsSize
             fsFree
             fsUsed
             status

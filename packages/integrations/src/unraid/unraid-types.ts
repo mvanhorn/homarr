@@ -37,6 +37,18 @@ export const unraidSystemInfoSchema = z.object({
         temp: z.number().nullish(),
       }),
     ),
+    caches: z
+      .array(
+        z.object({
+          name: z.string(),
+          fsSize: z.number().nullable(),
+          fsFree: z.number().nullable(),
+          fsUsed: z.number().nullable(),
+          status: z.string(),
+          temp: z.number().nullish(),
+        }),
+      )
+      .default([]),
   }),
   info: z.object({
     devices: z.object({
